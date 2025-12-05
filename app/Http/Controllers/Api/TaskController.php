@@ -4,101 +4,157 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Task;
-use App\Models\TaskAssignment;
 use App\Models\Employee;
-use App\Models\TaskStatusHistory;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 
 class TaskController extends Controller
 {
-    // 1. Lister toutes les tâches
+    private string $companyId = '01k7464hqksr4f99rp3ff7x2jz';
+
+    // Lister toutes les tâches
     public function index(): JsonResponse
     {
-        $companyId = '01k7464hqksr4f99rp3ff7x2jz'; // ton ID fixe
-        $tasks = Task::with('assignments.assignedTo')
-            ->where('organization_id', $companyId)
+        $tasks = Task::with('assignedTo')
+            ->where('company_id', $this->companyId)
+            ->orderBy('created_at', 'desc')
             ->get();
+
         return response()->json($tasks);
     }
 
-    // 2. Créer une tâche
+    // Créer une tâche (assignation incluse)
     public function store(Request $request): JsonResponse
     {
         $data = $request->validate([
+            'assigned_to' => 'required|exists:employees,id',
             'title' => 'required|string|max:255',
             'description' => 'nullable|string',
+            'due_date' => 'nullable|date_format:H:i:s', // Heure uniquement
+            'status' => 'nullable|in:todo,in_progress,done,cancelled,in_review'
         ]);
 
-        $task = Task::create([
-            'organization_id' => '01k7464hqksr4f99rp3ff7x2jz',
-            'title' => $data['title'],
-            'description' => $data['description'],
-            'created_by' => null, // ou un employee_id si tu veux
-        ]);
+        // Vérifier que l'employé appartient à la company
+        $employee = Employee::where('id', $data['assigned_to'])
+            ->where('company_id', $this->companyId)
+            ->firstOrFail();
+
+        $task = Task::create(array_merge($data, [
+            'company_id' => $this->companyId,
+            'status' => $data['status'] ?? 'todo'
+        ]));
 
         return response()->json($task, 201);
     }
 
-    // 3. Attribuer une tâche à un employé
-    public function assign(Request $request, string $taskId): JsonResponse
+    // Afficher une tâche
+    public function show(string $id): JsonResponse
     {
-        $task = Task::findOrFail($taskId);
-        $data = $request->validate([
-            'assigned_to' => 'required|exists:employees,id',
-            'due_date' => 'nullable|date',
-            'priority' => 'nullable|in:low,medium,high,critical',
-            'notes' => 'nullable|string',
-        ]);
+        $task = Task::with('assignedTo')
+            ->where('id', $id)
+            ->where('company_id', $this->companyId)
+            ->firstOrFail();
 
-        $assignment = TaskAssignment::create([
-            'task_id' => $task->id,
-            'assigned_to' => $data['assigned_to'],
-            'assigned_by' => null, // ou ID d’un manager
-            'assigned_at' => now(),
-            'due_date' => $data['due_date'],
-            'status' => 'todo',
-            'priority' => $data['priority'] ?? 'medium',
-            'progress' => 0,
-            'notes' => $data['notes'],
-        ]);
-
-        // Historique
-        TaskStatusHistory::create([
-            'task_assignment_id' => $assignment->id,
-            'old_status' => null,
-            'new_status' => 'todo',
-            'changed_by' => null,
-            'note' => 'Tâche attribuée',
-            'changed_at' => now(),
-        ]);
-
-        return response()->json($assignment, 201);
+        return response()->json($task);
     }
 
-    // 4. Mettre à jour le statut d’une attribution
-    public function updateStatus(Request $request, string $assignmentId): JsonResponse
+    // Modifier une tâche (y compris réassigner)
+    public function update(string $id, Request $request): JsonResponse
     {
-        $assignment = TaskAssignment::findOrFail($assignmentId);
-        $newStatus = $request->input('status');
+        $task = Task::where('id', $id)
+            ->where('company_id', $this->companyId)
+            ->firstOrFail();
 
-        if (!in_array($newStatus, ['todo', 'in_progress', 'done', 'cancelled'])) {
-            return response()->json(['error' => 'Statut invalide'], 400);
+        $data = $request->validate([
+            'assigned_to' => 'nullable|exists:employees,id',
+            'title' => 'nullable|string|max:255',
+            'description' => 'nullable|string',
+            'due_date' => 'nullable|date_format:H:i:s',
+            'status' => 'nullable|in:todo,in_progress,done,cancelled,in_review'
+        ]);
+
+        $status = $request->validate([
+            'status' => 'required|in:todo,in_progress,done,cancelled,in_review'
+        ])['status'];
+
+        $updateData = ['status' => $status];
+
+        // Si la tâche passe à "done", enregistrer la date/heure de réalisation
+        if ($status === 'done' && is_null($task->due_date)) {
+            $updateData['due_date'] = now();
         }
 
-        $oldStatus = $assignment->status;
-        $assignment->update(['status' => $newStatus]);
+        // Si la tâche est réouverte (ex: de "done" à "todo"), on peut vider due_date
+        if ($status !== 'done' && !is_null($task->due_date)) {
+            $updateData['due_date'] = null;
+        }
 
-        // Historique
-        TaskStatusHistory::create([
-            'task_assignment_id' => $assignment->id,
-            'old_status' => $oldStatus,
-            'new_status' => $newStatus,
-            'changed_by' => null,
-            'note' => $request->input('note', 'Statut mis à jour'),
-            'changed_at' => now(),
-        ]);
+        // Si changement d'employé, vérifier qu'il est dans la company
+        if (isset($data['assigned_to'])) {
+            Employee::where('id', $data['assigned_to'])
+                ->where('company_id', $this->companyId)
+                ->firstOrFail();
+        }
 
-        return response()->json($assignment);
+        $task->update($data);
+        return response()->json($task);
     }
+
+    // Supprimer une tâche
+    public function destroy(string $id): JsonResponse
+    {
+        $task = Task::where('id', $id)
+            ->where('company_id', $this->companyId)
+            ->firstOrFail();
+
+        $task->delete();
+        return response()->json(null, 204);
+    }
+
+    // Raccourci : Mettre à jour le statut seulement
+    public function updateStatus(string $id, Request $request): JsonResponse
+    {
+        $task = Task::where('id', $id)
+            ->where('company_id', $this->companyId)
+            ->firstOrFail();
+
+        $status = $request->validate([
+            'status' => 'required|in:todo,in_progress,done,cancelled,in_review'
+        ])['status'];
+
+        $task->update(['status' => $status]);
+        return response()->json($task);
+    }
+
+    // Liste des tâches assignées à un employé
+
+    public function tasksByEmployee(string $employeeId): JsonResponse
+    {
+        // Vérifier que l'employé existe et appartient à la company
+        Employee::where('id', $employeeId)
+            ->where('company_id', $this->companyId)
+            ->firstOrFail();
+
+        $tasks = Task::with('createdBy', 'assignedTo')
+            ->where('assigned_to', $employeeId)
+            ->where('company_id', $this->companyId)
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        return response()->json($tasks);
+    }
+
+    // Tâches pour un employé/comptable
+    public function myTasks(Request $request)
+    {
+        $user = $request->user();
+        if (!$user->employee_id) {
+            return response()->json([]);
+        }
+
+        return Task::where('assigned_to', $user->employee_id)
+            ->where('status', '!=', 'done')
+            ->get();
+    }
+
 }

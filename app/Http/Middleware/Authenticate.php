@@ -7,7 +7,7 @@ use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
-class AuthenticateGenuka
+class Authenticate
 {
     /**
      * Create a new middleware instance.

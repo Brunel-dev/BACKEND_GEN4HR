@@ -10,66 +10,18 @@ class User extends Authenticatable
 {
     use HasFactory, SoftDeletes;
 
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var array<int, string>
-     */
-    protected $fillable = [
-        'organization_id',
-        'employee_id',
-        'username',
-        'email',
-        'password_hash',
-        'roles',
-        'is_active',
-        'last_login',
-    ];
+    protected $fillable = ['email', 'password', 'role', 'employee_id'];
+    protected $hidden = ['password'];
+    protected $casts = ['employee_id' => 'integer'];
 
-    /**
-     * The attributes that should be hidden for serialization.
-     *
-     * @var array<int, string>
-     */
-    protected $hidden = [
-        'password_hash',
-    ];
-
-    /**
-     * The attributes that should be cast.
-     *
-     * @var array<string, string>
-     */
-    protected $casts = [
-        'roles' => 'array',
-        'last_login' => 'datetime',
-        'created_at' => 'datetime',
-        'updated_at' => 'datetime',
-        'deleted_at' => 'datetime',
-    ];
-
-    /**
-     * Get the employee associated with the user.
-     */
     public function employee()
     {
-        return $this->belongsTo(Employee::class, 'employee_id');
+        return $this->belongsTo(Employee::class);
     }
 
-    /**
-     * Get the company (organization) this user belongs to.
-     */
-    public function company()
+    // Méthode utilitaire
+    public function isAdmin(): bool
     {
-        return $this->belongsTo(Company::class, 'organization_id');
-    }
-
-    /**
-     * Laravel requires this method for password-based auth,
-     * but we don't use it. Return a placeholder.
-     */
-    public function getAuthPassword()
-    {
-        return $this->password_hash;
+        return $this->role === 'admin';
     }
 }

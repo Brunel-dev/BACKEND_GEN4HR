@@ -13,7 +13,12 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
-            'auth.genuka' => \App\Http\Middleware\AuthenticateGenuka::class,
+
+            // 🔐 Authentification Sanctum (interne)
+            'auth.sanctum' => \App\Http\Middleware\Authenticate::class,
+
+            // 👥 Middleware de rôle personnalisé
+            'role' => \App\Http\Middleware\RoleMiddleware::class,
         ]);
 
         // Use custom EncryptCookies middleware to exclude genuka_session
