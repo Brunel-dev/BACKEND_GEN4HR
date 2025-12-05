@@ -19,16 +19,37 @@ use Illuminate\Support\Facades\Route;
 |
 */
 
-Route::prefix('auth')->group(function () {
-    // OAuth callback route
-    Route::get('/callback', CallbackController::class)->name('auth.callback');
 
-    // Session management routes
-    Route::get('/check', CheckController::class)->name('auth.check');
-    Route::post('/refresh', RefreshController::class)->name('auth.refresh');
-    Route::get('/me', MeController::class)->name('auth.me');
-    Route::post('/logout', LogoutController::class)->name('auth.logout');
+ use App\Http\Controllers\Api\TaskController;
 
-    // Webhook route
-    Route::post('/webhook', WebhookController::class)->name('auth.webhook');
+Route::prefix('tasks')->group(function () {
+    Route::get('/', [TaskController::class, 'index']);
+    Route::post('/', [TaskController::class, 'store']);
+    Route::post('/{taskId}/assign', [TaskController::class, 'assign']);
+    Route::patch('/assignment/{assignmentId}/status', [TaskController::class, 'updateStatus']);
 });
+
+use App\Http\Controllers\Api\ResourceController;
+
+Route::get('/company', [ResourceController::class, 'company']);
+
+// Departments
+Route::get('/departments', [ResourceController::class, 'departments']);
+Route::post('/departments', [ResourceController::class, 'storeDepartment']);
+
+// Roles
+Route::get('/roles', [ResourceController::class, 'roles']);
+Route::post('/roles', [ResourceController::class, 'storeRole']);
+
+// Employees
+Route::get('/employees', [ResourceController::class, 'employees']);
+Route::post('/employees', [ResourceController::class, 'storeEmployee']);
+
+// Tasks
+Route::get('/tasks', [ResourceController::class, 'tasks']);
+Route::post('/tasks', [ResourceController::class, 'storeTask']);
+Route::patch('/tasks/{id}/status', [ResourceController::class, 'updateTaskStatus']);
+
+// Salary Payments
+Route::post('/salaries/pay', [ResourceController::class, 'paySalary']);
+Route::get('/employees/{employeeId}/payments', [ResourceController::class, 'employeePayments']);

@@ -26,15 +26,13 @@ class AuthenticateGenuka
      */
     public function handle(Request $request, Closure $next): Response
     {
-        $company = $this->sessionService->getAuthenticatedCompany();
-
-        if (! $company) {
-            abort(401, 'Please authenticate with Genuka first.');
-        }
-
-        // Add company to request attributes (not request parameters)
-        $request->attributes->set('genuka_company', $company);
-
+       // ⛔ Désactive la vérification
         return $next($request);
+
+        // ✅ Code original (à commenter ou supprimer) :
+        // if (!auth()->check()) {
+        //     return response()->json(['error' => 'Unauthorized'], 401);
+        // }
+        // return $next($request);
     }
 }

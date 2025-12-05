@@ -14,8 +14,8 @@ return [
     */
 
     'defaults' => [
-        'guard' => env('AUTH_GUARD', 'web'),
-        'passwords' => env('AUTH_PASSWORD_BROKER', 'users'),
+        'guard' => 'employee', // ← changer le guard par défaut
+        'passwords' => 'users',
     ],
 
     /*
@@ -36,10 +36,11 @@ return [
     */
 
     'guards' => [
-        'web' => [
+        'employee' => [
             'driver' => 'session',
-            'provider' => 'users',
+            'provider' => 'employees',
         ],
+        // Tu peux garder 'web' et 'api' si besoin, mais ici on veut employee
     ],
 
     /*
@@ -59,11 +60,12 @@ return [
     |
     */
 
-    'providers' => [
-        'users' => [
-            'driver' => 'eloquent',
-            'model' => env('AUTH_MODEL', App\Models\User::class),
-        ],
+        'providers' => [
+            'employees' => [
+                'driver' => 'eloquent',
+                'model' => App\Models\Employee::class,
+            ],
+        
 
         // 'users' => [
         //     'driver' => 'database',
